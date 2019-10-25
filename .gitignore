@@ -1,3 +1,6 @@
 # Matlab data and temp files
 *.mat
 *.m~
+
+# Mac stuff
+.DS_Store
