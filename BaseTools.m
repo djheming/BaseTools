@@ -41,6 +41,35 @@ classdef BaseTools
             MarkerSet = MarkerSet(1:N);
         end
         
+        % Obtain a sequence with nice round steps.
+        function steps = get_round_step_size( vals, target_N )
+            
+            vmin = min(vals(:));
+            vmax = max(vals(:));
+            vwidth = vmax - vmin;
+            if vwidth == 0
+                steps = vmin;
+            else
+                ideal_step = vwidth/target_N;
+                oom = floor( log10(ideal_step) );
+                candidate_steps = [ 1 2 2.5 5 10 20 50 100 ]*10^oom;
+                best = find( vwidth./candidate_steps <= target_N, 1, 'first' );
+                step_size = candidate_steps(best);
+                if vmin > 0 && vmax > 0
+                    steps = ( 0 : step_size : vmax )';
+                    steps = steps( steps > vmin );
+                elseif vmin <= 0 && vmax >= 0
+                    psteps = ( 0 : step_size : vmax )';
+                    nsteps = flip( ( 0 : -step_size : vmin )', 1 );
+                    steps = unique( [ nsteps; psteps ] );
+                elseif vmin < 0 && vmax < 0
+                    steps = flip( ( 0 : -step_size : vmin )', 1 );
+                    steps = steps( steps < vmax );
+                end
+            end
+            
+        end
+        
     end
 end
 
