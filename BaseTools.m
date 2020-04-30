@@ -83,18 +83,13 @@ classdef BaseTools
             % steps. How are we doing and when will we be done? 
             t_elapsed = toc(timername);
             dt = (t_elapsed/k);
-            if t_elapsed < 90 % For the first 1.5 minutes.
-                interval = 10; % Every ten seconds.
-            elseif t_elapsed < 300 % For the first 5 minutes.
-                interval = 30; % Every 30 seconds.
-            else
-                interval = 300; % Every five minutes.
-            end
-            if t_elapsed > 5 && ( mod(k,round(interval/dt)) == 0 )
+            report_on = unique( round( N*[ .001 .005 .01 .02 .03 .04 .05:.05:.95 ]' ) );
+            if k == 1 || any( report_on == k )
                 rt = dt*(N-k);
                 etc = now + datenum(0,0,0,0,0,rt);
                 fprintf( 'Completed %d/%d=%.1f%% in %s (%s each; ETC: %s).\n', k, N, 100*k/N, BaseTools.timetostr(t_elapsed), BaseTools.timetostr(dt), datestr(etc,13) );
             end
+            
         end
         
         % Obtain a sequence with nice round steps.
