@@ -76,7 +76,7 @@ classdef BaseTools
                 t_report = t_elapsed/(BaseTools.speryr*1e9);
                 t_units = 'Gyrs';
             end
-            str = sprintf( '%.1f %s', t_report, t_units );
+            str = sprintf( '%.2f %s', t_report, t_units );
         end
         function progress_report( timername, k, N )
             % Since <timername> timer was started, we have completed k of N
