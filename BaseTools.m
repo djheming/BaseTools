@@ -87,7 +87,7 @@ classdef BaseTools
             if k == 1 || any( report_on == k )
                 rt = dt*(N-k);
                 etc = now + datenum(0,0,0,0,0,rt);
-                fprintf( 'Completed %d/%d=%.1f%% in %s (%s each; ETC: %s).\n', k, N, 100*k/N, BaseTools.timetostr(t_elapsed), BaseTools.timetostr(dt), datestr(etc,13) );
+                fprintf( 'Completed %d/%d=%.1f%% in %s (%s each; %s remaining; ETC: %s).\n', k, N, 100*k/N, BaseTools.timetostr(t_elapsed), BaseTools.timetostr(dt), BaseTools.timetostr(rt), datestr(etc,13) );
             end
             
         end
