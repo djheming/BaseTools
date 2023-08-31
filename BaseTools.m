@@ -103,7 +103,7 @@ classdef BaseTools
             else
                 ideal_step = vwidth/target_N;
                 oom = floor( log10(ideal_step) );
-                candidate_steps = [ 1 2 2.5 5 10 20 50 100 ]*10^oom;
+                candidate_steps = [ 1 2 2.5 5 10 ]*10^oom;
                 best = find( floor(vwidth./candidate_steps) <= target_N, 1, 'first' );
                 step_size = candidate_steps(best);
                 if vmin > 0 && vmax > 0
