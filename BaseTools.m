@@ -76,7 +76,11 @@ classdef BaseTools
                 t_report = t_elapsed/(BaseTools.speryr*1e9);
                 t_units = 'Gyrs';
             end
-            str = sprintf( '%.2f %s', t_report, t_units );
+            if t_report > 1e-3
+                str = sprintf( '%.3f %s', t_report, t_units );
+            else
+                str = sprintf( '%.3e %s', t_report, t_units );
+            end
         end
         function progress_report( timername, k, N )
             % Since <timername> timer was started, we have completed k of N
@@ -119,6 +123,13 @@ classdef BaseTools
                 end
             end
             
+        end
+
+        % Save a figure without too much whitespace around it.
+        function printfig( fh, filename )
+            % Shrink page down to actual figure size to avoid unwanted whitespace.
+            fh.PaperSize = fh.PaperPosition(3:4); 
+            saveas( gcf, filename );
         end
         
     end
