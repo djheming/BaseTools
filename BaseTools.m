@@ -28,7 +28,7 @@ classdef BaseTools
         function args = argarray2struct( argarray )
             args = [];
             for i = 1 : 2 : length(argarray)-1
-                if ~isempty( argarray{i} )
+                if ~isempty( argarray{i} ) && isvarname( argarray{i} )
                     args.(argarray{i}) = argarray{i+1};
                 end
             end
@@ -128,8 +128,11 @@ classdef BaseTools
         % Save a figure without too much whitespace around it.
         function printfig( fh, filename )
             % Shrink page down to actual figure size to avoid unwanted whitespace.
-            fh.PaperSize = fh.PaperPosition(3:4); 
-            saveas( gcf, filename );
+            % fh.PaperSize = fh.PaperPosition(3:4); 
+            % ah = fh.CurrentAxes;
+            % tp = ah.tightPosition;
+            % fh.Position(3) = fh.Position(3) * tp(3)/tp(4);
+            exportgraphics( fh, filename );
         end
         
     end
