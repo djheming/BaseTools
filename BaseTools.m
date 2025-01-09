@@ -95,6 +95,16 @@ classdef BaseTools
             end
             
         end
+
+        % Turn a covariance matrix into an ellipse for plotting purposes.
+        function [ Xe, Ye ] = covar_to_ellipse( full_covar )
+            [ V, D ] = eig( full_covar );
+            theta = 0:1:360;
+            x = [ sqrt(D(2,2))*cosd(theta); sqrt(D(1,1))*sind(theta) ];
+            B = V * x;
+            Ye = - B(1,:);
+            Xe = B(2,:);
+        end
         
         % Obtain a sequence with nice round steps.
         function steps = get_round_step_size( vals, target_N )
@@ -126,13 +136,13 @@ classdef BaseTools
         end
 
         % Save a figure without too much whitespace around it.
-        function printfig( fh, filename )
+        function printfig( fh, filename, varargin )
             % Shrink page down to actual figure size to avoid unwanted whitespace.
-            % fh.PaperSize = fh.PaperPosition(3:4); 
-            % ah = fh.CurrentAxes;
-            % tp = ah.tightPosition;
-            % fh.Position(3) = fh.Position(3) * tp(3)/tp(4);
-            exportgraphics( fh, filename );
+            fh.PaperSize = fh.PaperPosition(3:4); 
+            ah = fh.CurrentAxes;
+            tp = ah.tightPosition;
+            fh.Position(3) = fh.Position(3) * tp(3)/tp(4);
+            exportgraphics( fh, filename, varargin{:} );
         end
         
     end
