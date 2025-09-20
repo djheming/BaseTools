@@ -3,12 +3,13 @@ classdef BaseTools
     % BaseTools: class for holding a set of commonly used tools that don't
     % belong exclusively to any particular class.
     %
-    %   Disclaimer: This code was not developed for commercial purposes and has
-    %   not been subjected to formal validation testing. I find it useful for
+    %   Disclaimer: This code is provided as-is, has been tested only very
+    %   informally, and may not always behave as intended. I find it useful for
     %   my own work, and I hope you will too, but I make no guarantees as to
-    %   the accuracy or robustness of this code.
+    %   the accuracy or robustness of this code. This code is also actively
+    %   under development and future versions may not be backward compatible.
     %
-    %   Doug Hemingway (douglas.hemingway@gmail.com)
+    %   Doug Hemingway (dhemingway@carnegiescience.edu)
     %   Carnegie Institution for Science
     %   2019-01-13
     %    
@@ -26,31 +27,49 @@ classdef BaseTools
 
         % Parsing of name/value pair arguments into a handy structure.
         function args = argarray2struct( argarray, defargs )
+            
             % Build a structure from the input arguments. Assume the input
             % arguments are in name,value pairs but that there may also be
             % a few leading arguments that are not organized that way. Put
             % those leading arguments in an array.
-            isName = @(x) ischar(x) || isstring(x);
-            firstNV = find(cellfun(isName, argarray), 1);
-            if ~exist( 'defargs', 'var' )
+            if ~exist('defargs', 'var')
                 defargs = {};
             end
+
+            % Look for where the name-value pairs begin. A name must be
+            % followed by another agument and it must be a valid variable
+            % name.
+            isName = @(x) (ischar(x) || isstring(x)) && isvarname(x);
+            Narg = numel(argarray);
+            firstNV = [];
+            for k = 1:Narg-1  % need at least 2 elements for a pair
+                if isName(argarray{k})
+                    firstNV = k;
+                    break;
+                end
+            end
+
+            % Assign positional arguments.
             if isempty(firstNV)
+                % no NV pairs detected, everything positional
                 args.posArgs = argarray;
                 nvArgs = defargs;
             else
                 args.posArgs = argarray(1:firstNV-1);
-                nvArgs = [ defargs argarray(firstNV:end) ];
+                nvArgs = [defargs argarray(firstNV:end)];
             end
-            N = length(nvArgs);
+
+            % Process name-value pairs into the output structure.
+            N = numel(nvArgs);
             if mod(N,2) ~= 0
-                error( 'Input must have an even number of input strings' );
+                error('Input must have an even number of input strings');
             end
-            for i = 1 : 2 : N-1
-                if ~isempty( nvArgs{i} ) && isvarname( nvArgs{i} )
+            for i = 1:2:N-1
+                if ~isempty(nvArgs{i}) && isvarname(nvArgs{i})
                     args.(nvArgs{i}) = nvArgs{i+1};
                 end
             end
+
         end
         function argarray = struct2argarray( args )
             if isfield( args, 'posArgs' )
@@ -64,9 +83,21 @@ classdef BaseTools
             end
         end
 
+        % Parse positional arguments and pull out axes handle (or make one
+        % if it's not there).
+        function [ ah, fh ] = extractAxesHandle( args )
+            ah = [];
+            for k = 1 : length(args.posArgs)
+                if isa( args.posArgs{k}, 'matlab.graphics.axis.Axes' )
+                    ah = args.posArgs{k};
+                end
+            end
+            [ ah, fh ] = BaseTools.verify_axes_handle( ah );
+        end
+
         % Make sure we have an active plotting axes.
         function [ ah, fh ] = verify_axes_handle( ah )
-            if isa( ah, 'matlab.graphics.axis.Axes' )
+            if exist( 'ah', 'var' ) && isa( ah, 'matlab.graphics.axis.Axes' )
                 fh = ah.Parent;
             else
                 fh = figure;
@@ -74,7 +105,7 @@ classdef BaseTools
             end
         end
 
-        % Exclude figure handles from a cell array.
+        % Exclude axes handles from a cell array.
         function non_axes = filter_out_axes( argarray )
             non_axes = argarray( ~cellfun(@(x) isa(x, 'matlab.graphics.axis.Axes'), argarray) );
         end
@@ -126,6 +157,45 @@ classdef BaseTools
                     vq(:,valinds) = repmat( v1, 1, sum(valinds) );
                 end
             end
+        end
+
+        % Smooth a path along a sphere without losing the large scale shape
+        % of the path.
+        function [ smooth_phis, smooth_thetas, smooth_sigmas ] = smoothShericalCoordinates( phis, thetas )
+            % Force column vectors.
+            phis = phis(:);
+            thetas = thetas(:);
+            % Convert (phi, theta) to Cartesian unit vectors
+            % theta: colatitude (0 at North Pole), phi: longitude
+            x = cos(phis) .* sin(thetas);
+            y = sin(phis) .* sin(thetas);
+            z = cos(thetas);
+            % Smooth Cartesian components
+            if length(z) > 30
+                w = 11;
+            else
+                w = 5;
+            end
+            x_s = smoothdata( x, 'movmean', w );
+            y_s = smoothdata( y, 'movmean', w );
+            z_s = smoothdata( z, 'movmean', w );
+            % Re-normalize to stay on the unit sphere
+            r = sqrt(x_s.^2 + y_s.^2 + z_s.^2);
+            x_s = x_s ./ r;
+            y_s = y_s ./ r;
+            z_s = z_s ./ r;
+            % Convert back to spherical angles
+            smooth_thetas = acos(z_s);              % theta in [0, pi]
+            smooth_phis   = atan2(y_s, x_s);        % phi in [-pi, pi]
+            smooth_sigmas = BaseTools.getCumArcLength( smooth_phis, smooth_thetas );
+        end
+        function sigmas = getCumArcLength( phis, thetas )
+            theta1 = thetas(1:end-1);
+            theta2 = thetas(2:end);
+            phi1 = phis(1:end-1);
+            phi2 = phis(2:end);
+            dsigmas = acos( cos(theta1).*cos(theta2) + sin(theta1).*sin(theta2).*cos(phi2-phi1) );
+            sigmas = [ 0; cumsum(dsigmas) ];
         end
 
         % Obtain a set of basic Markers for plotting.
@@ -245,9 +315,6 @@ classdef BaseTools
                 y(x<min(xrng),j) = yrng(1,j);
                 y(x>max(xrng),j) = yrng(2,j);
             end
-            % figure;
-            % plot( x, y );
-            % grid on;
         end
 
         % Turn a covariance matrix into an ellipse for plotting purposes.
@@ -434,17 +501,118 @@ classdef BaseTools
 
         end
 
-        % Save a figure without too much whitespace around it.
-        function printfig( fh, filename, varargin )
-            warning( 'Consider directly calling exportgraphics() instead.' );
-            % Shrink page down to actual figure size to avoid unwanted whitespace.
-            fh.PaperSize = fh.PaperPosition(3:4); 
-            ah = fh.CurrentAxes;
-            tp = ah.tightPosition;
-            fh.Position(3) = fh.Position(3) * tp(3)/tp(4);
-            exportgraphics( fh, filename, varargin{:} );
+        % Build a nice label from type and units.
+        function disp_units = getDispUnits( type_txt, units_txt )
+            if ~isempty( type_txt ) && ~isempty( units_txt )
+                disp_units = [ type_txt ' (' units_txt ')' ];
+            elseif ~isempty( type_txt ) && isempty( units_txt )
+                disp_units = type_txt;
+            elseif isempty( type_txt ) && ~isempty( units_txt )
+                disp_units = units_txt;
+            else
+                disp_units = '';
+            end
         end
-        
+
+        % Testing.
+        function unit_test()
+
+            % This is a disjointed collection of steps designed to exercise
+            % much of the code in this toolset.
+
+            % Setup.
+            close all;
+            mytimer = tic;
+
+            % Draw some arrows and frames. This also implicitly verifies
+            % argument parsing and figure/axes handle checking.
+            x = linspace(0,pi);
+            a1 = BaseTools.drawArrow( x, sin(x), 'Color', 'r' );
+            [ a1, f1 ] = BaseTools.verify_axes_handle( a1 );
+            BaseTools.drawArrow( a1, x, x, 'Color', [ 0 .6 .2 ], 'headlength', .2 );
+            xlabel( BaseTools.getDispUnits( 'X-position', 'meters' ) );
+            ylabel( BaseTools.getDispUnits( 'Y-position', '' ) );
+            R = BaseTools.rpy2rot( -10, 5, 15 );
+            BaseTools.drawFrame( a1, [ 0 0 0 ], eye(3), [ .2 .2 .4 ], 'xyz' );
+            BaseTools.drawFrame( a1, [ -2 -1 0 ], R, 'b', 'ijk' );
+            view( a1, [ 20 60 ] );
+
+            % Example of displaying a constant.
+            text( a1, 0, 3, sprintf( 'G = %.3e m^3kg^{-1}s^{-2}', BaseTools.G ) );
+
+            % Example of a covariance ellipse.
+            [ Xe, Ye ] = BaseTools.covar_to_ellipse( [ 1 .2; .2 1 ] );
+            clr = [ .8 .2 .2 ];
+            ph = patch( a1, Xe-2, Ye+2, clr );
+            ph.FaceAlpha = 0.5;
+            ph.EdgeColor = clr;
+            ph.LineWidth = 2.0;
+
+            % Example of a function you want to restrict to a specified range.
+            x = linspace(-4,4);
+            y = BaseTools.get_hard_stop_mapping( x, [ -1; 3 ], [ -2; 1 ] );
+            plot( a1, x, y, 'm--', 'LineWidth', 2.0 );
+            
+            % Test some of the basic number manipulation stuff.
+            [ a2, f2 ] = BaseTools.verify_axes_handle;
+            hold( a2, 'on' );
+            grid( a2, 'on' );
+            [ fi, ki ] = BaseTools.spaced_sequence( 5, 12 );
+            plot( a2, fi, zeros(size(fi)), 'ko' );
+            plot( a2, ki, zeros(size(ki)), 'bo', 'MarkerSize', 12, 'MarkerFaceColor', 'b' );
+            xlabel( 'Reduced sequence with approximately even spacing' );
+            vals = linspace(-31,122,27);
+            N = 11;
+            steps = BaseTools.get_round_step_size( vals, N, true );
+            plot( a2, zeros(size(vals)), vals, 'ko' );
+            plot( a2, zeros(size(steps)), steps, 'ro', 'MarkerSize', 12, 'MarkerFaceColor', 'r' );
+            ylabel( 'Round and even step sizes' );
+            a2.XLim(1) = -1;
+
+            % Show some 3D rotations of vectors.
+            [ a3, f3 ] = BaseTools.verify_axes_handle;
+            hold( a3, 'on' );
+            grid( a3, 'on' );
+
+            % Draw an arc on geographic coordinates.
+            R = 2;
+            num_segs = 71;
+            phis = linspace(0,1.1*pi,num_segs);
+            thetas = linspace(0.1*pi,0.7*pi,num_segs);
+            [ x, y, z ] = sph2cart( phis, pi/2-thetas, R );
+            plot3( a3, x, y, z, 'k' );
+            xlabel( 'x' );
+            ylabel( 'y' );
+            zlabel( 'z' );
+            [ smooth_phis, smooth_thetas, smooth_sigmas ] = BaseTools.smoothShericalCoordinates( phis, thetas );
+            [ x, y, z ] = sph2cart( smooth_phis, pi/2-smooth_thetas, R );
+            plot3( a3, x, y, z, 'b--' );
+            view( a3, [ -80 -10 ] );
+
+            % Label at quasi-regular intervals.
+            num_lbls = 5;
+            [ ~, ki ] = BaseTools.spaced_sequence( num_lbls, num_segs );
+            [ x, y, z ] = sph2cart( smooth_phis(ki), pi/2-smooth_thetas(ki), R );
+            for k = 1 : num_lbls
+                BaseTools.drawArrow( a3, [ 0 x(k) ], [ 0 y(k) ], [ 0 z(k) ], 'Color', [ k/num_lbls 0 0 ], 'headlength', .15 );
+                text( a3, x(k), y(k), z(k), [ '\sigma = ' num2str(smooth_sigmas(k)) ], 'Color', [ k/num_lbls 0 0 ] );
+            end
+
+            % Show interpolated vectors between the last two big vectors.
+            v = [ x(end-1:end)'; y(end-1:end)'; z(end-1:end)' ];
+            vq = BaseTools.interp_vectors( [ 1 2 ], v, linspace(1,2,7) );
+            N = size(vq,2);
+            for k = 1 : N
+                BaseTools.drawArrow( a3, [ 0 vq(1,k) ], [ 0 vq(2,k) ], [ 0 vq(3,k) ], 'Color', [ 0 0 k/N ], 'headlength', .07 );
+                BaseTools.progress_report( mytimer, k, N );
+            end
+
+            % Merge the figures.
+            BaseTools.tileFigures( [ f1 f2 f3 ] );
+
+        end
+
     end
+    
 end
 
