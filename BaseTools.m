@@ -252,6 +252,23 @@ classdef BaseTools
             
         end
 
+        % Decide on an appropriate scaling for the pressure profile.
+        function [ p_units, p_scaling ] = get_pressure_scaling( P_vals )
+            if max( P_vals ) > 1e9
+                p_units = 'GPa';
+                p_scaling = 1e9;
+            elseif max( P_vals ) > 1e6
+                p_units = 'MPa';
+                p_scaling = 1e6;
+            elseif max( P_vals ) > 1e3
+                p_units = 'kPa';
+                p_scaling = 1e3;
+            else
+                p_units = 'Pa';
+                p_scaling = 1;
+            end
+        end
+
         % Obtain a sequence with nice round steps.
         function steps = get_round_step_size( vals, target_N, centeronzero )
             if exist( 'centeronzero', 'var' ) && ~isempty( centeronzero ) && centeronzero
