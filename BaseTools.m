@@ -26,7 +26,7 @@ classdef BaseTools
     methods (Static)
 
         % Parsing of name/value pair arguments into a handy structure.
-        function args = argarray2struct( argarray, defargs )
+        function [ args, outarray ] = argarray2struct( argarray, defargs )
             
             % Build a structure from the input arguments. Assume the input
             % arguments are in name,value pairs but that there may also be
@@ -69,6 +69,10 @@ classdef BaseTools
                     args.(nvArgs{i}) = nvArgs{i+1};
                 end
             end
+
+            % The user may also want a new argarray that corresponds to the
+            % resulting args structure.
+            outarray = BaseTools.struct2argarray(args);
 
         end
         function argarray = struct2argarray( args )
@@ -124,6 +128,18 @@ classdef BaseTools
             end
         end
         
+        % Basic conversion between lat/lon and theta/phi.
+        function [ lat, lon ] = thetaphi2latlon( theta, phi )
+            colat = theta*180/pi;
+            lat = 90-colat;
+            lon = phi*180/pi;
+        end
+        function [ theta, phi ] = latlon2thetaphi( lat, lon )
+            colat = 90-lat;
+            theta = colat*pi/180;
+            phi = lon*pi/180;
+        end
+
         % Spherical interpolation between vectors.
         function vq = interp_vectors( x, v, xq )
             % x and xq must be 1D arrays with xq defined somewhere between
@@ -189,6 +205,28 @@ classdef BaseTools
             smooth_phis   = atan2(y_s, x_s);        % phi in [-pi, pi]
             smooth_sigmas = BaseTools.getCumArcLength( smooth_phis, smooth_thetas );
         end
+        function [ lattxt, lontxt ] = latlon2txt( lat, lon, N )
+            if ~exist( 'N', 'var' ) || isempty( N )
+                N = 0;
+            end
+            if lat == 0
+                lattxt = [ num2str(round(lat,N)) '°' ];
+            elseif lat > 0
+                lattxt = [ num2str(round(lat,N)) '°N' ];
+            elseif lat < 0
+                lattxt = [ num2str(round(-lat,N)) '°S' ];
+            end
+            if lon == 0 || lon == 180
+                lontxt = [ num2str(round(lon,N)) '°' ];
+            elseif lon > 0
+                lontxt = [ num2str(round(lon,N)) '°E' ];
+            elseif lon < 0
+                lontxt = [ num2str(round(-lon,N)) '°W' ];
+            end
+        end
+
+        % Compute cumulative arc length along the supplied set of
+        % coordinates (longitude and colatitude).
         function sigmas = getCumArcLength( phis, thetas )
             theta1 = thetas(1:end-1);
             theta2 = thetas(2:end);
@@ -197,6 +235,64 @@ classdef BaseTools
             dsigmas = acos( cos(theta1).*cos(theta2) + sin(theta1).*sin(theta2).*cos(phi2-phi1) );
             sigmas = [ 0; cumsum(dsigmas) ];
         end
+
+        % Compute spherical median of a set of longitudes/colatitudes.
+        function [ theta0, phi0, iter ] = sphericalMedian( theta, phi )
+
+            % Convert to 3D unit vectors.
+            V = BaseTools.sph2xyz(theta, phi);
+
+            % Initial guess = normalized average vector.
+            x = mean(V, 1);
+            x = x / norm(x);
+
+            % Iterate.
+            for iter = 1:200
+                d = sqrt(sum((V - x).^2, 2));      % Euclidean chord distances
+                w = 1 ./ max(d, 1e-12);            % avoid singularities
+                x_new = sum(V .* w, 1) / sum(w);   % weighted update
+                x_new = x_new / norm(x_new);       % project back to sphere
+                if norm(x_new - x) < 1e-9
+                    break
+                end
+                x = x_new;
+            end
+
+            % Convert result back to spherical colatitude–longitude.
+            [theta0, phi0] = BaseTools.xyz2sph(x);
+
+        end
+
+        % Convert colatitude and longitude to vectors.
+        function V = sph2xyz(theta, phi)
+            % theta: colatitude (0 = north pole)
+            % phi:   longitude
+            V = [sin(theta).*cos(phi), ...
+                sin(theta).*sin(phi), ...
+                cos(theta)];
+        end
+
+        % Convert vectors to colatitude and longitude.
+        function [theta, phi] = xyz2sph(v)
+            % v: Nx3 normalized vectors
+            x = v(:,1); y = v(:,2); z = v(:,3);
+            theta = acos(z);              % colatitude
+            phi   = atan2(y, x);          % longitude
+        end
+
+        % Compute spherical distance between between two or more points on
+        % a sphere, specified in terms of colatitude and longitude. All
+        % angles are in radians.
+        function d = sphdist(theta1, phi1, theta2, phi2)
+            % Inputs:
+            %   theta1, phi1  - colatitude and longitude of point 1
+            %   theta2, phi2  - colatitude and longitude of point 2
+            % Output:
+            %   d - great-circle distance (radians)
+            c = sin(theta1).*sin(theta2).*cos(phi1 - phi2) + cos(theta1).*cos(theta2); % dot product of the two unit vectors
+            c = min(1, max(-1, c));   % clamp for numerical safety
+            d = acos(c);
+        end        
 
         % Obtain a set of basic Markers for plotting.
         function MarkerSet = get_marker_set( N )
