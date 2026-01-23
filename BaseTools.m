@@ -109,6 +109,39 @@ classdef BaseTools
             end
         end
 
+        % Move the axes from one figure into a specific position in a tiled
+        % layout figure.
+        function move_axes_into_tile( fh, th, tile, tilespan )
+
+            % Set default tilespan.
+            if nargin < 4
+                tilespan = [1 1];
+            end
+
+            % Find candidate axes (exclude legends/colorbars).
+            ax = findobj(fh, 'Type', 'axes', '-not', 'Tag', 'legend');
+
+            % Enforce exactly one axes
+            assert(isscalar(ax), ...
+                'move_axes_into_tile:ExpectedOneAxes', ...
+                'Expected exactly one axes in source figure.');
+
+            % Delete any existing axes occupying this tile.
+            axExisting = findobj(th, 'Type', 'axes', ...
+                '-property', 'Layout', ...
+                'Layout', struct('Tile', tile));
+            delete(axExisting);
+
+            % Reparent and place.
+            ax.Parent = th;
+            ax.Layout.Tile     = tile;
+            ax.Layout.TileSpan = tilespan;
+
+            % Close source figure.
+            close(fh);
+
+        end
+
         % Exclude axes handles from a cell array.
         function non_axes = filter_out_axes( argarray )
             non_axes = argarray( ~cellfun(@(x) isa(x, 'matlab.graphics.axis.Axes'), argarray) );
@@ -463,6 +496,16 @@ classdef BaseTools
             end
         end
 
+        % Draw an ellipse (called oval because Matlab has its own drawellipse function).
+        function mi = drawOval( ah, x0, y0, dx, dy, clr )
+            theta = 0:1:360;
+            Xp = x0 + dx * sind(theta);
+            Yp = y0 + dy * cosd(theta);
+            patch( ah, Xp, Yp, clr, 'EdgeColor', clr, 'FaceAlpha', 0.5, 'LineWidth', 2.0 );
+            hold( ah, 'on' );
+            mi = plot( ah, x0, y0, 'Marker', '+', 'LineWidth', 2.0, 'MarkerEdgeColor', clr, 'MarkerSize', 10, 'LineStyle', 'none' );
+        end
+
         % Draw coordinate frame.
         function drawFrame( ah, v, R, clr, lbls )
             if ~exist( 'clr', 'var' ) || isempty( clr )
@@ -480,85 +523,97 @@ classdef BaseTools
         end
 
         % Draw a simple arrow ending with an arrowhead.
-        function ah = drawArrow( varargin )
-            args = BaseTools.argarray2struct( varargin, { 'Color', 'k' } );
+        function [ ah, fh ] = drawArrow( varargin )
+            % Usage: drawArrow( x, y, ... ) or drawArrow( x, y, z, ... ).
+            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', 'xyz', 'lighting', 'on' } );
             if isempty( args.posArgs )
                 error( 'Not enough leading positional input arguments.' );
-            else
-                [ ah, ~ ] = BaseTools.verify_axes_handle( args.posArgs{1} );
-                grid(ah,'on');
-                hold(ah,'on');
-                axis(ah,'equal');
-                line_coords = BaseTools.filter_out_axes( args.posArgs );
-                if length(line_coords)<2 || length(line_coords)>3
-                    error( 'Need x,y or x,y,z coordinates for arrow.' );
-                elseif length(line_coords)==2
-                    % Here, we have an arrow in a 2D plane.
-                    x = line_coords{1};
-                    y = line_coords{2};
-                    line( ah, x, y, 'LineWidth', 2.0, 'Color', args.Color );
-                    if ~isfield( args, 'headlength' ) || isempty( args.headlength )
-                        lens = sqrt( diff(x).^2 + diff(y).^2 );
-                        full_length = sum(lens);
-                        args.headlength = full_length/8;
-                    end
-                    if ~isfield( args, 'headwidth' ) || isempty( args.headwidth )
-                        args.headwidth = args.headlength;
-                    end
-                    % Figure out final heading of arrow.
-                    theta = atan2( y(end)-y(end-1), x(end)-x(end-1) );
-                    hx = [ 0 -1 -1 ]*args.headlength;
-                    hy = [ 0 1 -1 ]*args.headwidth/2;
-                    fx = cos(theta)*hx - sin(theta)*hy + x(end);
-                    fy = sin(theta)*hx + cos(theta)*hy + y(end);
-                    ph = fill( fx, fy, args.Color );
-                    ph.EdgeColor = args.Color;
-                    ph.FaceColor = args.Color;
-                elseif length(line_coords)==3
-                    % Here, we need to draw a 3D arrow.
-                    x = line_coords{1};
-                    y = line_coords{2};
-                    z = line_coords{3};
-                    line( ah, x, y, z, 'LineWidth', 2.0, 'Color', args.Color );
-                    if ~isfield( args, 'headlength' ) || isempty( args.headlength )
-                        lens = sqrt( diff(x).^2 + diff(y).^2 + diff(z).^2 );
-                        full_length = sum(lens);
-                        args.headlength = full_length/8;
-                    end
-                    if ~isfield( args, 'headwidth' ) || isempty( args.headwidth )
-                        args.headwidth = args.headlength/2;
-                    end
-                    % Build cone.
-                    n = 18;
-                    theta = linspace( 0, 2*pi, n );
-                    hz = linspace( 0, -args.headlength, n );
-                    [ Theta, hZ ] = meshgrid( theta, hz );
-                    hR = args.headwidth * ( hZ/args.headlength );
-                    hX = hR .* cos(Theta);
-                    hY = hR .* sin(Theta);
-                    % Translate and rotate cone to the arrow's terminus.
-                    terminus = [ x(end); y(end); z(end) ];
-                    tv = [ x(end)-x(end-1); y(end)-y(end-1); z(end)-z(end-1) ];
-                    tv_hat = tv/norm(tv);
-                    k = cross( [ 0 0 1 ]', tv_hat );
-                    s = norm(k);
-                    c = dot( [ 0 0 1 ]', tv_hat );
-                    if s == 0
-                        if c > 0
-                            Rot = eye(3);
-                        else
-                            Rot = [ -1 0 0; 0 -1 0; 0 0 1 ];
-                        end
-                    else
-                        k = k / s;  % Normalize rotation axis.
-                        K = [ 0 -k(3) k(2); k(3) 0 -k(1); -k(2) k(1) 0 ];
-                        Rot = eye(3) + K * s + K^2 * (1 - c);  % Rodrigues' rotation formula.
-                    end
-                    Head = Rot*[ hX(:)'; hY(:)'; hZ(:)' ] + terminus;
-                    sh = surf( ah, reshape(Head(1,:),size(hX)), reshape(Head(2,:),size(hY)), reshape(Head(3,:),size(hZ)) );
-                    sh.EdgeColor = 'none';
-                    sh.FaceColor = args.Color;
+            end
+            [ ah, fh ] = BaseTools.verify_axes_handle( args.posArgs{1} );
+            grid(ah,'on');
+            hold(ah,'on');
+            axis(ah,'equal');
+            if strcmp( args.lighting, 'on' )
+                camlight(ah);
+                lighting( ah, 'gouraud' );
+            end
+            line_coords = BaseTools.filter_out_axes( args.posArgs );
+            if length(line_coords)<2 || length(line_coords)>3
+                error( 'Need x,y or x,y,z coordinates for arrow.' );
+            elseif length(line_coords)==2
+                % Here, we have an arrow in a 2D plane.
+                x = line_coords{1};
+                y = line_coords{2};
+                xlabel(ah,args.axislabels(1));
+                ylabel(ah,args.axislabels(2));
+                line( ah, x, y, 'LineWidth', 2.0, 'Color', args.Color );
+                if ~isfield( args, 'headlength' ) || isempty( args.headlength )
+                    lens = sqrt( diff(x).^2 + diff(y).^2 );
+                    full_length = sum(lens);
+                    args.headlength = full_length/8;
                 end
+                if ~isfield( args, 'headwidth' ) || isempty( args.headwidth )
+                    args.headwidth = args.headlength;
+                end
+                % Figure out final heading of arrow.
+                theta = atan2( y(end)-y(end-1), x(end)-x(end-1) );
+                hx = [ 0 -1 -1 ]*args.headlength;
+                hy = [ 0 1 -1 ]*args.headwidth/2;
+                fx = cos(theta)*hx - sin(theta)*hy + x(end);
+                fy = sin(theta)*hx + cos(theta)*hy + y(end);
+                ph = fill( fx, fy, args.Color );
+                ph.EdgeColor = args.Color;
+                ph.FaceColor = args.Color;
+            elseif length(line_coords)==3
+                % Here, we need to draw a 3D arrow.
+                x = line_coords{1};
+                y = line_coords{2};
+                z = line_coords{3};
+                xlabel(ah,args.axislabels(1));
+                ylabel(ah,args.axislabels(2));
+                zlabel(ah,args.axislabels(3));
+                if isfield( args, 'view' ) && ~isempty( args.view )
+                    view( args.view );
+                end
+                line( ah, x, y, z, 'LineWidth', 2.0, 'Color', args.Color );
+                if ~isfield( args, 'headlength' ) || isempty( args.headlength )
+                    lens = sqrt( diff(x).^2 + diff(y).^2 + diff(z).^2 );
+                    full_length = sum(lens);
+                    args.headlength = full_length/8;
+                end
+                if ~isfield( args, 'headwidth' ) || isempty( args.headwidth )
+                    args.headwidth = args.headlength/2;
+                end
+                % Build cone.
+                n = 18;
+                theta = linspace( 0, 2*pi, n );
+                hz = linspace( 0, -args.headlength, n );
+                [ Theta, hZ ] = meshgrid( theta, hz );
+                hR = args.headwidth * ( hZ/args.headlength );
+                hX = hR .* cos(Theta);
+                hY = hR .* sin(Theta);
+                % Translate and rotate cone to the arrow's terminus.
+                terminus = [ x(end); y(end); z(end) ];
+                tv = [ x(end)-x(end-1); y(end)-y(end-1); z(end)-z(end-1) ];
+                tv_hat = tv/norm(tv);
+                k = cross( [ 0 0 1 ]', tv_hat );
+                s = norm(k);
+                c = dot( [ 0 0 1 ]', tv_hat );
+                if s == 0
+                    if c > 0
+                        Rot = eye(3);
+                    else
+                        Rot = [ 1 0 0; 0 -1 0; 0 0 -1 ];
+                    end
+                else
+                    k = k / s;  % Normalize rotation axis.
+                    K = [ 0 -k(3) k(2); k(3) 0 -k(1); -k(2) k(1) 0 ];
+                    Rot = eye(3) + K * s + K^2 * (1 - c);  % Rodrigues' rotation formula.
+                end
+                Head = Rot*[ hX(:)'; hY(:)'; hZ(:)' ] + terminus;
+                sh = surf( ah, reshape(Head(1,:),size(hX)), reshape(Head(2,:),size(hY)), reshape(Head(3,:),size(hZ)) );
+                sh.EdgeColor = 'none';
+                sh.FaceColor = args.Color;
             end
         end
 
@@ -624,6 +679,31 @@ classdef BaseTools
                 disp_units = units_txt;
             else
                 disp_units = '';
+            end
+        end
+
+        % Make sure a filename is unique and append a number if not.
+        function uniquePath = getUniqueFilename(fullPath)
+            [folder, name, ext] = fileparts(fullPath);
+            uniquePath = fullPath;
+
+            % Continue looping as long as the file exists
+            while exist(uniquePath, 'file')
+                % Check if the name already ends in _# (e.g., "planetGrid_1")
+                tokens = regexp(name, '^(.*)_(\d+)$', 'tokens');
+
+                if isempty(tokens)
+                    % No trailing number found: append "_1"
+                    name = [name, '_1'];
+                else
+                    % Trailing number found: increment it
+                    baseName = tokens{1}{1};
+                    currentNum = str2double(tokens{1}{2});
+                    name = sprintf('%s_%d', baseName, currentNum + 1);
+                end
+
+                % Reconstruct the path for the next "exist" check
+                uniquePath = fullfile(folder, [name, ext]);
             end
         end
 
