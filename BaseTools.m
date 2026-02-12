@@ -525,7 +525,7 @@ classdef BaseTools
         % Draw a simple arrow ending with an arrowhead.
         function [ ah, fh ] = drawArrow( varargin )
             % Usage: drawArrow( x, y, ... ) or drawArrow( x, y, z, ... ).
-            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', 'xyz', 'lighting', 'on' } );
+            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', 'xyz', 'lighting', 'off' } );
             if isempty( args.posArgs )
                 error( 'Not enough leading positional input arguments.' );
             end
