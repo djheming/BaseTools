@@ -210,7 +210,7 @@ classdef BaseTools
 
         % Smooth a path along a sphere without losing the large scale shape
         % of the path.
-        function [ smooth_phis, smooth_thetas, smooth_sigmas ] = smoothShericalCoordinates( phis, thetas )
+        function [ smooth_phis, smooth_thetas, smooth_sigmas ] = smoothSphericalCoordinates( phis, thetas )
             % Force column vectors.
             phis = phis(:);
             thetas = thetas(:);
@@ -307,7 +307,11 @@ classdef BaseTools
 
         % Convert vectors to colatitude and longitude.
         function [theta, phi] = xyz2sph(v)
-            % v: Nx3 normalized vectors
+            % Input: 
+            %   v: Nx3 normalized vectors
+            % Output: 
+            %   theta: colatitude (0 = north pole)
+            %   phi:   longitude
             x = v(:,1); y = v(:,2); z = v(:,3);
             theta = acos(z);              % colatitude
             phi   = atan2(y, x);          % longitude
@@ -777,7 +781,7 @@ classdef BaseTools
             xlabel( 'x' );
             ylabel( 'y' );
             zlabel( 'z' );
-            [ smooth_phis, smooth_thetas, smooth_sigmas ] = BaseTools.smoothShericalCoordinates( phis, thetas );
+            [ smooth_phis, smooth_thetas, smooth_sigmas ] = BaseTools.smoothSphericalCoordinates( phis, thetas );
             [ x, y, z ] = sph2cart( smooth_phis, pi/2-smooth_thetas, R );
             plot3( a3, x, y, z, 'b--' );
             view( a3, [ -80 -10 ] );
