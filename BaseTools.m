@@ -529,7 +529,7 @@ classdef BaseTools
         % Draw a simple arrow ending with an arrowhead.
         function [ ah, fh ] = drawArrow( varargin )
             % Usage: drawArrow( x, y, ... ) or drawArrow( x, y, z, ... ).
-            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', 'xyz', 'lighting', 'off' } );
+            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', '', 'lighting', 'off' } );
             if isempty( args.posArgs )
                 error( 'Not enough leading positional input arguments.' );
             end
@@ -548,8 +548,10 @@ classdef BaseTools
                 % Here, we have an arrow in a 2D plane.
                 x = line_coords{1};
                 y = line_coords{2};
-                xlabel(ah,args.axislabels(1));
-                ylabel(ah,args.axislabels(2));
+                if ~isempty(args.axislabels)
+                    xlabel(ah,args.axislabels(1));
+                    ylabel(ah,args.axislabels(2));
+                end
                 line( ah, x, y, 'LineWidth', 2.0, 'Color', args.Color );
                 if ~isfield( args, 'headlength' ) || isempty( args.headlength )
                     lens = sqrt( diff(x).^2 + diff(y).^2 );
@@ -573,9 +575,11 @@ classdef BaseTools
                 x = line_coords{1};
                 y = line_coords{2};
                 z = line_coords{3};
-                xlabel(ah,args.axislabels(1));
-                ylabel(ah,args.axislabels(2));
-                zlabel(ah,args.axislabels(3));
+                if ~isempty(args.axislabels)
+                    xlabel(ah,args.axislabels(1));
+                    ylabel(ah,args.axislabels(2));
+                    zlabel(ah,args.axislabels(3));
+                end
                 if isfield( args, 'view' ) && ~isempty( args.view )
                     view( args.view );
                 end
