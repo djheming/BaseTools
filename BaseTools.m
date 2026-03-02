@@ -96,11 +96,11 @@ classdef BaseTools
                     ah = args.posArgs{k};
                 end
             end
-            [ ah, fh ] = BaseTools.verify_axes_handle( ah );
+            [ ah, fh ] = BaseTools.verifyAxesHandle( ah );
         end
 
         % Make sure we have an active plotting axes.
-        function [ ah, fh ] = verify_axes_handle( ah )
+        function [ ah, fh ] = verifyAxesHandle( ah )
             if exist( 'ah', 'var' ) && isa( ah, 'matlab.graphics.axis.Axes' )
                 fh = ah.Parent;
             else
@@ -111,7 +111,7 @@ classdef BaseTools
 
         % Move the axes from one figure into a specific position in a tiled
         % layout figure.
-        function move_axes_into_tile( fh, th, tile, tilespan )
+        function moveAxesIntoTile( fh, th, tile, tilespan )
 
             % Set default tilespan.
             if nargin < 4
@@ -123,7 +123,7 @@ classdef BaseTools
 
             % Enforce exactly one axes
             assert(isscalar(ax), ...
-                'move_axes_into_tile:ExpectedOneAxes', ...
+                'moveAxesIntoTile:ExpectedOneAxes', ...
                 'Expected exactly one axes in source figure.');
 
             % Delete any existing axes occupying this tile.
@@ -143,7 +143,7 @@ classdef BaseTools
         end
 
         % Exclude axes handles from a cell array.
-        function non_axes = filter_out_axes( argarray )
+        function non_axes = filterOutAxes( argarray )
             non_axes = argarray( ~cellfun(@(x) isa(x, 'matlab.graphics.axis.Axes'), argarray) );
         end
 
@@ -174,7 +174,7 @@ classdef BaseTools
         end
 
         % Spherical interpolation between vectors.
-        function vq = interp_vectors( x, v, xq )
+        function vq = interpVectors( x, v, xq )
             % x and xq must be 1D arrays with xq defined somewhere between
             % the min and max of x. The input v should be a 3xN array
             % representing N distinct vectors, one corresponding to each x.
@@ -332,7 +332,7 @@ classdef BaseTools
         end        
 
         % Obtain a set of basic Markers for plotting.
-        function MarkerSet = get_marker_set( N )
+        function MarkerSet = getMarkerSet( N )
             MarkerSet = 'so^*dpvx><+.';
             MarkerSet = repmat( MarkerSet, 1, ceil(N/length(MarkerSet)) );
             MarkerSet = MarkerSet(1:N);
@@ -371,7 +371,7 @@ classdef BaseTools
                 str = sprintf( '%.3e %s', t_report, t_units );
             end
         end
-        function progress_report( timername, k, N )
+        function progressReport( timername, k, N )
             % Since <timername> timer was started, we have completed k of N
             % steps. How are we doing and when will we be done? 
             t_elapsed = toc(timername);
@@ -386,7 +386,7 @@ classdef BaseTools
         end
 
         % Decide on an appropriate scaling for the pressure profile.
-        function [ p_units, p_scaling ] = get_pressure_scaling( P_vals )
+        function [ p_units, p_scaling ] = getPressureScaling( P_vals )
             if max( P_vals ) > 1e9
                 p_units = 'GPa';
                 p_scaling = 1e9;
@@ -403,7 +403,7 @@ classdef BaseTools
         end
 
         % Obtain a sequence with nice round steps.
-        function steps = get_round_step_size( vals, target_N, centeronzero )
+        function steps = getRoundStepSize( vals, target_N, centeronzero )
             if exist( 'centeronzero', 'var' ) && ~isempty( centeronzero ) && centeronzero
                 vmax = max( abs(vals(:)) );
                 vmin = -vmax;
@@ -434,7 +434,7 @@ classdef BaseTools
             end
             
         end
-        function [ fi, ki ] = spaced_sequence( Nk, Nf )
+        function [ fi, ki ] = spacedSequence( Nk, Nf )
             % Suppose you have a sequence from 1 to Nf but you only want
             % to retain Nk elements of this sequence, with the first and
             % last being retained for sure. The two outputs are: fi (the
@@ -450,7 +450,7 @@ classdef BaseTools
         end
 
         % Apply mapping with specified hard stops.
-        function y = get_hard_stop_mapping( x, xrng, yrng )
+        function y = getHardStopMapping( x, xrng, yrng )
             x = reshape(x,numel(x),1);
             if numel(xrng) ~= 2
                 error( 'xrng must be a 2-element vector' );
@@ -468,7 +468,7 @@ classdef BaseTools
         end
 
         % Turn a covariance matrix into an ellipse for plotting purposes.
-        function [ Xe, Ye ] = covar_to_ellipse( full_covar )
+        function [ Xe, Ye ] = covarToEllipse( full_covar )
             [ V, D ] = eig( full_covar );
             theta = 0:1:360;
             x = [ sqrt(D(2,2))*cosd(theta); sqrt(D(1,1))*sind(theta) ];
@@ -533,7 +533,7 @@ classdef BaseTools
             if isempty( args.posArgs )
                 error( 'Not enough leading positional input arguments.' );
             end
-            [ ah, fh ] = BaseTools.verify_axes_handle( args.posArgs{1} );
+            [ ah, fh ] = BaseTools.verifyAxesHandle( args.posArgs{1} );
             grid(ah,'on');
             hold(ah,'on');
             axis(ah,'equal');
@@ -541,7 +541,7 @@ classdef BaseTools
                 camlight(ah);
                 lighting( ah, 'gouraud' );
             end
-            line_coords = BaseTools.filter_out_axes( args.posArgs );
+            line_coords = BaseTools.filterOutAxes( args.posArgs );
             if length(line_coords)<2 || length(line_coords)>3
                 error( 'Need x,y or x,y,z coordinates for arrow.' );
             elseif length(line_coords)==2
@@ -729,7 +729,7 @@ classdef BaseTools
             % argument parsing and figure/axes handle checking.
             x = linspace(0,pi);
             a1 = BaseTools.drawArrow( x, sin(x), 'Color', 'r' );
-            [ a1, f1 ] = BaseTools.verify_axes_handle( a1 );
+            [ a1, f1 ] = BaseTools.verifyAxesHandle( a1 );
             BaseTools.drawArrow( a1, x, x, 'Color', [ 0 .6 .2 ], 'headlength', .2 );
             xlabel( BaseTools.getDispUnits( 'X-position', 'meters' ) );
             ylabel( BaseTools.getDispUnits( 'Y-position', '' ) );
@@ -742,7 +742,7 @@ classdef BaseTools
             text( a1, 0, 3, sprintf( 'G = %.3e m^3kg^{-1}s^{-2}', BaseTools.G ) );
 
             % Example of a covariance ellipse.
-            [ Xe, Ye ] = BaseTools.covar_to_ellipse( [ 1 .2; .2 1 ] );
+            [ Xe, Ye ] = BaseTools.covarToEllipse( [ 1 .2; .2 1 ] );
             clr = [ .8 .2 .2 ];
             ph = patch( a1, Xe-2, Ye+2, clr );
             ph.FaceAlpha = 0.5;
@@ -751,27 +751,27 @@ classdef BaseTools
 
             % Example of a function you want to restrict to a specified range.
             x = linspace(-4,4);
-            y = BaseTools.get_hard_stop_mapping( x, [ -1; 3 ], [ -2; 1 ] );
+            y = BaseTools.getHardStopMapping( x, [ -1; 3 ], [ -2; 1 ] );
             plot( a1, x, y, 'm--', 'LineWidth', 2.0 );
             
             % Test some of the basic number manipulation stuff.
-            [ a2, f2 ] = BaseTools.verify_axes_handle;
+            [ a2, f2 ] = BaseTools.verifyAxesHandle;
             hold( a2, 'on' );
             grid( a2, 'on' );
-            [ fi, ki ] = BaseTools.spaced_sequence( 5, 12 );
+            [ fi, ki ] = BaseTools.spacedSequence( 5, 12 );
             plot( a2, fi, zeros(size(fi)), 'ko' );
             plot( a2, ki, zeros(size(ki)), 'bo', 'MarkerSize', 12, 'MarkerFaceColor', 'b' );
             xlabel( 'Reduced sequence with approximately even spacing' );
             vals = linspace(-31,122,27);
             N = 11;
-            steps = BaseTools.get_round_step_size( vals, N, true );
+            steps = BaseTools.getRoundStepSize( vals, N, true );
             plot( a2, zeros(size(vals)), vals, 'ko' );
             plot( a2, zeros(size(steps)), steps, 'ro', 'MarkerSize', 12, 'MarkerFaceColor', 'r' );
             ylabel( 'Round and even step sizes' );
             a2.XLim(1) = -1;
 
             % Show some 3D rotations of vectors.
-            [ a3, f3 ] = BaseTools.verify_axes_handle;
+            [ a3, f3 ] = BaseTools.verifyAxesHandle;
             hold( a3, 'on' );
             grid( a3, 'on' );
 
@@ -792,7 +792,7 @@ classdef BaseTools
 
             % Label at quasi-regular intervals.
             num_lbls = 5;
-            [ ~, ki ] = BaseTools.spaced_sequence( num_lbls, num_segs );
+            [ ~, ki ] = BaseTools.spacedSequence( num_lbls, num_segs );
             [ x, y, z ] = sph2cart( smooth_phis(ki), pi/2-smooth_thetas(ki), R );
             for k = 1 : num_lbls
                 BaseTools.drawArrow( a3, [ 0 x(k) ], [ 0 y(k) ], [ 0 z(k) ], 'Color', [ k/num_lbls 0 0 ], 'headlength', .15 );
@@ -801,11 +801,11 @@ classdef BaseTools
 
             % Show interpolated vectors between the last two big vectors.
             v = [ x(end-1:end)'; y(end-1:end)'; z(end-1:end)' ];
-            vq = BaseTools.interp_vectors( [ 1 2 ], v, linspace(1,2,7) );
+            vq = BaseTools.interpVectors( [ 1 2 ], v, linspace(1,2,7) );
             N = size(vq,2);
             for k = 1 : N
                 BaseTools.drawArrow( a3, [ 0 vq(1,k) ], [ 0 vq(2,k) ], [ 0 vq(3,k) ], 'Color', [ 0 0 k/N ], 'headlength', .07 );
-                BaseTools.progress_report( mytimer, k, N );
+                BaseTools.progressReport( mytimer, k, N );
             end
 
             % Merge the figures.
@@ -815,5 +815,42 @@ classdef BaseTools
 
     end
     
+    % Legacy support for old method names.
+    methods (Static, Hidden)
+        function varargout = verify_axes_handle(varargin)
+            [varargout{1:nargout}] = BaseTools.verifyAxesHandle(varargin{:});
+        end
+        function varargout = move_axes_into_tile(varargin)
+            [varargout{1:nargout}] = BaseTools.moveAxesIntoTile(varargin{:});
+        end
+        function varargout = filter_out_axes(varargin)
+            [varargout{1:nargout}] = BaseTools.filterOutAxes(varargin{:});
+        end
+        function varargout = interp_vectors(varargin)
+            [varargout{1:nargout}] = BaseTools.interpVectors(varargin{:});
+        end
+        function varargout = get_marker_set(varargin)
+            [varargout{1:nargout}] = BaseTools.getMarkerSet(varargin{:});
+        end
+        function varargout = progress_report(varargin)
+            [varargout{1:nargout}] = BaseTools.progressReport(varargin{:});
+        end
+        function varargout = get_pressure_scaling(varargin)
+            [varargout{1:nargout}] = BaseTools.getPressureScaling(varargin{:});
+        end
+        function varargout = get_round_step_size(varargin)
+            [varargout{1:nargout}] = BaseTools.getRoundStepSize(varargin{:});
+        end
+        function varargout = spaced_sequence(varargin)
+            [varargout{1:nargout}] = BaseTools.spacedSequence(varargin{:});
+        end
+        function varargout = get_hard_stop_mapping(varargin)
+            [varargout{1:nargout}] = BaseTools.getHardStopMapping(varargin{:});
+        end
+        function varargout = covar_to_ellipse(varargin)
+            [varargout{1:nargout}] = BaseTools.covarToEllipse(varargin{:});
+        end
+    end
+
 end
 
