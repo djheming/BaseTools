@@ -1,6 +1,13 @@
 # Matlab data and temp files
 *.mat
 *.m~
+*.prj
+*.slx.autosave
+*.asv
 
 # Mac stuff
 .DS_Store
+
+# Lab-specific stuff
+local_paths.m
+/libs
