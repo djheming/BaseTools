@@ -16,7 +16,7 @@ classdef BaseTools
     
     properties (Constant)
         G = 6.67408e-11; % Source: http://arxiv.org/pdf/1507.07956v1.pdf, 2016-03-14
-        speryr = 3600 * 8766; % seconds per year
+        speryr = 3600 * 8766; % seconds per year (Julian year)
         sperday = 86400; % seconds per day
         sperhr = 3600; % seconds per hour
         Rg = 8.31446261815324; % J/mol/K, Gas constant
@@ -84,6 +84,19 @@ classdef BaseTools
             for i = 1 : length(names)
                 argarray{2*i-1} = names{i};
                 argarray{2*i} = args.(names{i});
+            end
+        end
+        function result = mergeStructs( varargin )
+            result = struct();
+            for i = 1 : nargin
+                % If this is a strcture, copy its contents to the output
+                % structure.
+                if isstruct(varargin{i})
+                    fnames = fieldnames(varargin{i});
+                    for j = 1 : length(fnames)
+                        result.(fnames{j}) = varargin{i}.(fnames{j});
+                    end
+                end
             end
         end
 
