@@ -50,26 +50,39 @@ function target = findLibrary(sourceRoot, libName)
     % Priority 2: Sibling Directory (Development Mode)
     path2 = fullfile(fileparts(sourceRoot), libName);
     % Priority 3: Check git-ignored local_paths.m
-    path3 = checkLocalConfig(libName);
+    [ path3, labRoot ] = checkLocalConfig(libName);
+    if ~isempty( labRoot )
+        path4 = fullfile(labRoot, libName);
+    else
+        path4 = '';
+    end
     
+    % Waterfall through the paths in priority order
     if isfolder(path1)
         target = path1;
     elseif isfolder(path2)
         target = path2;
     elseif ~isempty(path3) && isfolder(path3)
         target = path3;
+    elseif ~isempty(path4) && isfolder(path4)
+        target = path4;
     else
-        % Priority 4: Interactive Prompt
+        % Priority 5: Interactive Prompt
         target = promptForPath(libName);
     end
+
 end
 
-function p = checkLocalConfig(libName)
+function [ p, labRoot ] = checkLocalConfig(libName)
     p = '';
+    labRoot = '';
     if exist('local_paths.m', 'file')
         config = local_paths();
         if isfield(config, libName)
             p = config.(libName); 
+        end
+        if isfield(config, 'LabRoot')
+            labRoot = config.LabRoot; 
         end
     end
 end
@@ -87,7 +100,15 @@ function target = promptForPath(libName)
     
     if sel ~= 0
         target = sel;
-        saveLocalPath(libName, target);
+        parentDir = fileparts(target);
+        % Ask whether user wants us to remember this parent folder as the
+        % labRoot folder.
+        choice = questdlg(sprintf('Would you like to remember this folder (%s) as the Lab Root?\n', parentDir), 'Set Lab Root', 'Yes', 'No', 'Yes');
+         if strcmp(choice, 'Yes')
+             saveLocalPath('LabRoot', parentDir);
+         else
+             saveLocalPath(libName, target);
+         end
     end
 
 end
@@ -102,7 +123,7 @@ function saveLocalPath(libName, targetPath)
     end
     % Append choice to the file
     fid = fopen(fname, 'a');
-    fprintf(fid, '    p.%s = ''%s'';\n', libName, targetPath);
+    fprintf(fid, 'p.%s = ''%s'';\n', libName, targetPath);
     fclose(fid);
     fprintf('  [Saved] Path to %s saved in local_paths.m\n', libName);
 
