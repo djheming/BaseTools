@@ -763,6 +763,84 @@ classdef BaseTools
                 uniquePath = fullfile(folder, [name, ext]);
             end
         end
+        function hash = getHash( data )
+
+            % Generate a unique hashstring for the supplied data structure
+            % or cell array of data structures.
+
+            % Initialize the SHE-256 "blender" once.
+            md = java.security.MessageDigest.getInstance('SHA-256');
+
+            % Recursively process all items in 'data'.
+            if ~iscell(data)
+                data = {data};
+            end
+            processHashItem(data);
+
+            % Format as a hex string.
+            hash = sprintf('%02x', typecast(md.digest(), 'uint8'));
+
+            % --- Nested recursive hash processor ---
+            function processHashItem(item)
+
+                % Start with metadata (class and size).
+                md.update(uint8(class(item))); % Hash the class (make sure classes are identical).
+                md.update(typecast(size(item), 'uint8')); % Hash the size (handles empty data).
+
+                % Any remaining non-empty content is processed based on
+                % type (e.g., if it's a sparse array, we need to pull it
+                % apart before attempting to hash).
+                if ~isempty(item)
+                    if iscell(item)
+                        for i = 1 : numel(item)
+                            processHashItem(item{i});
+                        end
+                    elseif isstruct(item)
+                        fns = sort(fieldnames(item));
+                        for i = 1 : numel(item)
+                            for j = 1 : numel(fns)
+                                processHashItem(item(i).(fns{j}));
+                            end
+                        end
+                    elseif issparse(item)
+                        [ r, c, v ] = find(item);
+                        if ~isempty(r) && ~isempty(c) && ~isempty(v)
+                            md.update(typecast(r, 'uint8'));
+                            md.update(typecast(c, 'uint8'));
+                            md.update(typecast(v, 'uint8'));
+                        end
+                    elseif isnumeric(item) || islogical(item)
+                        md.update(typecast(item(:), 'uint8'));
+                    elseif ischar(item) || isstring(item)
+                        md.update(uint8(char(item)));
+                    elseif isobject(item)
+                        if ismethod(item,'getHash')
+                            processHashItem(item.getHash); % Use the class's custome getHash function.
+                        else
+                            % Automated reflection.
+                            mc = metaclass(item);
+                            pList = mc.PropertyList;
+                            % Sort properties by name for determinism
+                            [~, idx] = sort({pList.Name});
+                            pList = pList(idx);
+                            for k = 1:length(pList)
+                                p = pList(k);
+                                % Only hash properties that define the state:
+                                % - Not Dependent (derived)
+                                % - Not Transient (temporary/session-based)
+                                % - GetAccess must be public (for BaseTools to see it)
+                                if ~p.Dependent && ~p.Transient && strcmp(p.GetAccess, 'public')
+                                    md.update(uint8(p.Name)); % Hash the property name
+                                    processHashItem(item.(p.Name)); % Recursive hash of the value
+                                end
+                            end
+                        end
+                    end
+                end
+
+            end
+
+        end
 
         % Testing.
         function unit_test()
