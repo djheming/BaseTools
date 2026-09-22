@@ -726,16 +726,167 @@ classdef BaseTools
         end
 
         % Set tick marks for geographic coordinates.
-        function setGeographicTicks( ah )
-            if diff(ah.XLim) > 180
+        function setGeographicTicks( ah, news_mode )
+            if nargin < 2 || isempty( news_mode )
+                news_mode = true;
+            end
+            if diff(ah.XLim) > 180 && diff(ah.YLim) > 90
                 ah.XTick = -180:45:360;
+                ah.YTick = -90:30:90;
+                if news_mode
+                    for i = 1 : length(ah.XAxis.TickValues)
+                        if ah.XAxis.TickValues(i) > 0
+                            ah.XAxis.TickLabels{i} = [ num2str(ah.XAxis.TickValues(i)) '°E' ];
+                        elseif ah.XAxis.TickValues(i) < 0
+                            ah.XAxis.TickLabels{i} = [ num2str(abs(ah.XAxis.TickValues(i))) '°W' ];
+                        else
+                            ah.XAxis.TickLabels{i} = [ num2str(ah.XAxis.TickValues(i)) '°' ];
+                        end
+                    end
+                    for i = 1 : length(ah.YAxis.TickValues)
+                        if ah.YAxis.TickValues(i) > 0
+                            ah.YAxis.TickLabels{i} = [ num2str(ah.YAxis.TickValues(i)) '°N' ];
+                        elseif ah.YAxis.TickValues(i) < 0
+                            ah.YAxis.TickLabels{i} = [ num2str(abs(ah.YAxis.TickValues(i))) '°S' ];
+                        else
+                            ah.YAxis.TickLabels{i} = [ num2str(ah.YAxis.TickValues(i)) '°' ];
+                        end
+                    end
+                    ah.XLabel.String = '';
+                    ah.YLabel.String = '';
+                else
+                    ah.XTickLabelMode = 'auto';
+                    ah.YTickLabelMode = 'auto';
+                    xlabel( ah, 'Longitude (degrees east)' );
+                    ylabel( ah, 'Latitude (degrees north)' );
+                end
             else
                 ah.XTickMode = 'auto';
-            end
-            if diff(ah.YLim) > 90
-                ah.YTick = -90:30:90;
-            else
                 ah.YTickMode = 'auto';
+                ah.XTickLabelMode = 'auto';
+                ah.YTickLabelMode = 'auto';
+                xlabel( ah, 'Longitude (degrees east)' );
+                ylabel( ah, 'Latitude (degrees north)' );
+            end
+        end
+        
+        % Wrap exportgraphics or print so it can work seamlessly with and
+        % without an active display.
+        function exportFigure(figHandle, filename, resolution)
+
+            % Usage: BaseTools.exportFigure(gcf, 'my_plot.png', 600);
+            if nargin < 3 || isempty(resolution)
+                resolution = 600;
+            end
+
+            try
+                % Attempt the modern, high-quality export
+                exportgraphics(figHandle, filename, 'Resolution', resolution);
+
+            catch ME
+                % Check if the failure is due to Headless macOS Font Services
+                if contains(ME.message, 'Font services') || contains(ME.identifier, 'Graphics:exportgraphics:FontServices')
+
+                    % Fallback: Use the 'print' function.
+                    % It is more robust in headless mode and still supports high resolution.
+                    [~, ~, ext] = fileparts(filename);
+
+                    % Determine format based on extension
+                    switch lower(ext)
+                        case '.png'
+                            formatStr = '-dpng';
+                        case {'.jpg', '.jpeg'}
+                            formatStr = '-djpeg';
+                        case '.pdf'
+                            formatStr = '-dpdf';
+                        case '.tif'
+                            formatStr = '-dtiff';
+                        otherwise
+                            formatStr = '-dpng'; % Default to PNG
+                    end
+
+                    % Force the figure to use its screen size for printing
+                    figHandle.PaperPositionMode = 'auto';
+
+                    % Force the renderer to finalize the layout
+                    addpath(fullfile(matlabroot, 'toolbox/matlab/graphics/graphics')); % ensure access
+                    drawnow;
+                    pause(.1);
+
+                    % Explicitly set the renderer
+                    rendererStr = '-vector';
+
+                    % Execute the fallback
+                    print(figHandle, filename, formatStr, sprintf('-r%d', resolution), rendererStr);
+
+                    % Log the fallback so you know it happened on Atlas
+                    fprintf('  [Headless] exportgraphics failed (Font Services). Used print() fallback for %s.\n', filename);
+
+                else
+                    % If it's a different error, we still want to know!
+                    rethrow(ME);
+                end
+            end
+        end
+
+        % Set output font sizes appropriately.
+        function setOutputConfig(target)
+            % Configures global 'groot' defaults for target output mode.
+            % Usage:
+            %   BaseTools.setOutputConfig('paper')
+            %   BaseTools.setOutputConfig('ppt')
+            
+            % Enforce standard units across all presets
+            set(groot, 'DefaultFigureUnits', 'centimeters');
+            set(groot, 'DefaultFigurePaperPositionMode', 'auto');
+
+            % Force figures to be undocked.
+            set(groot, 'DefaultFigureWindowStyle', 'normal');
+
+            % Set sizes for known target types with 'paper' as default.
+            if nargin < 1 || isempty(target)
+                target = 'paper';
+            end
+            switch lower(target)
+                case {'paper', 'pub', 'publication'}
+                    figWidth  = 24;  
+                    figHeight = 18;  
+                    baseFont  = 12;
+                    titleFont = 14;
+                case {'ppt', 'presentation', 'slides'}
+                    figWidth  = 20;  
+                    figHeight = 15;  
+                    baseFont  = 16;
+                    titleFont = 18;
+                otherwise
+                    error('BaseTools:UnknownTarget', ...
+                        'Target must be ''paper'' or ''ppt''. Received: %s', target);
+            end
+            
+            % Set standard figure geometry [left bottom width height]
+            set(groot, 'DefaultFigurePosition', [2, 2, figWidth, figHeight]);
+            
+            % Set global font sizes (explicitly, no multipliers)
+            set(groot, 'DefaultAxesFontSize',      baseFont);
+            set(groot, 'DefaultTextFontSize',      baseFont);  % Handles clabel & annotations
+            set(groot, 'DefaultColorbarFontSize',  baseFont);
+            set(groot, 'DefaultAxesLabelFontSizeMultiplier', 1.2 );
+            set(groot, 'DefaultAxesTitleFontSize',  titleFont);
+        end
+        function resetOutputConfig()
+            % Restores all customized groot properties back to Matlab factory settings.
+            propertiesToReset = { ...
+                'DefaultFigureUnits', ...
+                'DefaultFigurePosition', ...
+                'DefaultFigurePaperPositionMode', ...
+                'DefaultAxesFontSize', ...
+                'DefaultTextFontSize', ...
+                'DefaultColorbarFontSize', ...
+                'DefaultAxesLabelFontSizeMultiplier', ...
+                'DefaultAxesTitleFontSize' ...
+            };
+            for i = 1:numel(propertiesToReset)
+                set(groot, propertiesToReset{i}, 'remove');
             end
         end
 
