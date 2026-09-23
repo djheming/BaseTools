@@ -89,12 +89,13 @@ classdef BaseTools
         function result = mergeStructs( varargin )
             result = struct();
             for i = 1 : nargin
+                s = varargin{i};
                 % If this is a strcture, copy its contents to the output
                 % structure.
-                if isstruct(varargin{i})
-                    fnames = fieldnames(varargin{i});
+                if isstruct(s) && ~isempty(s)
+                    fnames = fieldnames(s);
                     for j = 1 : length(fnames)
-                        result.(fnames{j}) = varargin{i}.(fnames{j});
+                        result.(fnames{j}) = s.(fnames{j});
                     end
                 end
             end
