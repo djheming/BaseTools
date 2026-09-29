@@ -64,6 +64,7 @@ classdef BaseTools
             if mod(N,2) ~= 0
                 error('Input must have an even number of input strings');
             end
+            args.nvpairs = N/2;
             for i = 1:2:N-1
                 if ~isempty(nvArgs{i}) && isvarname(nvArgs{i})
                     args.(nvArgs{i}) = nvArgs{i+1};
@@ -108,6 +109,9 @@ classdef BaseTools
             for k = 1 : length(args.posArgs)
                 if isa( args.posArgs{k}, 'matlab.graphics.axis.Axes' )
                     ah = args.posArgs{k};
+                elseif isa( args.posArgs{k}, 'matlab.ui.Figure' )
+                    fh = args.posArgs{k};
+                    ah = axes('Parent',fh);
                 end
             end
             [ ah, fh ] = BaseTools.verifyAxesHandle( ah );
