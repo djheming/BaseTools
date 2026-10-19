@@ -463,6 +463,19 @@ classdef BaseTools
             end
             
         end
+        function newvals = getRoundRange( vals )
+            dv = diff( vals );
+            if dv == 0
+                dv = max( abs(vals(1)), 1 );
+            end
+            newvals = vals + 0.05*dv*[-1 1];
+            bigval = max(abs(newvals));
+            oom = floor(log10(bigval));
+            candidate_steps = [ .5 1 2 2.5 5 10 ]*10^oom;
+            ind = find( bigval./candidate_steps > 3, 1, 'last' );
+            step = candidate_steps(ind);
+            newvals = step * [ floor(newvals(1)/step), ceil(newvals(2)/step) ];
+        end
         function [ fi, ki ] = spacedSequence( Nk, Nf )
             % Suppose you have a sequence from 1 to Nf but you only want
             % to retain Nk elements of this sequence, with the first and
@@ -574,9 +587,9 @@ classdef BaseTools
                 error( 'Not enough leading positional input arguments.' );
             end
             [ ah, fh ] = BaseTools.verifyAxesHandle( args.posArgs{1} );
-            grid(ah,'on');
-            hold(ah,'on');
-            axis(ah,'equal');
+            % grid(ah,'on');
+            % hold(ah,'on');
+            % axis(ah,'equal');
             if strcmp( args.lighting, 'on' )
                 camlight(ah);
                 lighting( ah, 'gouraud' );
