@@ -26,7 +26,7 @@ classdef BaseTools
     methods (Static)
 
         % Parsing of name/value pair arguments into a handy structure.
-        function [ args, outarray ] = argarray2struct( argarray, defargs )
+        function [ args, outarray ] = argarray2struct( argarray, defargs, expectedposargs )
             
             % Build a structure from the input arguments. Assume the input
             % arguments are in name,value pairs but that there may also be
@@ -35,28 +35,76 @@ classdef BaseTools
             if ~exist('defargs', 'var')
                 defargs = {};
             end
-
-            % Look for where the name-value pairs begin. A name must be
-            % followed by another agument and it must be a valid variable
-            % name.
-            isName = @(x) (ischar(x) || isstring(x)) && isvarname(x);
-            Narg = numel(argarray);
-            firstNV = [];
-            for k = 1:Narg-1  % need at least 2 elements for a pair
-                if isName(argarray{k})
-                    firstNV = k;
-                    break;
-                end
+            if ~exist('expectedposargs', 'var')
+                expectedposargs = {};
             end
 
-            % Assign positional arguments.
-            if isempty(firstNV)
-                % no NV pairs detected, everything positional
-                args.posArgs = argarray;
-                nvArgs = defargs;
+            % Record total number of input arguments.
+            Narg = numel(argarray);
+            if isempty(expectedposargs)
+
+                % No positional argument are strictly required, but it's
+                % common to include an optional figure or axes handle as a
+                % leading positional argument before the name-value pairs
+                % begin. 
+            
+                % Look for where the name-value pairs begin. A name must be
+                % followed by another agument and it must be a valid variable
+                % name.
+                isName = @(x) (ischar(x) || isstring(x)) && isvarname(x);
+                firstNV = [];
+                for k = 1:Narg-1  % need at least 2 elements for a pair
+                    if isName(argarray{k})
+                        firstNV = k;
+                        break;
+                    end
+                end
+
+                % Assign positional arguments.
+                if isempty(firstNV)
+                    % no NV pairs detected, everything positional
+                    args.posArgs = argarray;
+                    nvArgs = defargs;
+                else
+                    args.posArgs = argarray(1:firstNV-1);
+                    nvArgs = [defargs argarray(firstNV:end)];
+                end
+
             else
-                args.posArgs = argarray(1:firstNV-1);
-                nvArgs = [defargs argarray(firstNV:end)];
+
+                % Look for required positional arguments.
+
+                % Note that we might also have a graphics handle as the
+                % first argument and any required positional arguments
+                % would have to follow that.
+                hasHandle = false;
+                if Narg >= 1 && (isa(argarray{1}, 'matlab.graphics.axis.Axes') || isa(argarray{1}, 'matlab.ui.Figure'))
+                    hasHandle = true;
+                end
+                P = numel(expectedposargs);
+                numPos = hasHandle + P;
+                numPos = min( Narg, numPos ); % In case fewer arguments than expected.
+
+                % Assign positional arguments.
+                args.posArgs = argarray(1:numPos);
+                for i = 1 : P
+                    ind = i + hasHandle;
+                    if ind <= Narg
+                        args.(expectedposargs{i}) = argarray{ind};
+                    else
+                        % Missing expected input argument. Leave empty.
+                        args.(expectedposargs{i}) = [];
+                    end
+                end
+
+                % Treat the rest as name-value pairs.
+                firstNV = numPos + 1;
+                if firstNV <= Narg
+                    nvArgs = [defargs argarray(firstNV:end)];
+                else
+                    nvArgs = defargs;
+                end
+
             end
 
             % Process name-value pairs into the output structure.
@@ -473,6 +521,9 @@ classdef BaseTools
             oom = floor(log10(bigval));
             candidate_steps = [ .5 1 2 2.5 5 10 ]*10^oom;
             ind = find( bigval./candidate_steps > 3, 1, 'last' );
+            if isempty(ind)
+                ind = 1;
+            end
             step = candidate_steps(ind);
             newvals = step * [ floor(newvals(1)/step), ceil(newvals(2)/step) ];
         end
@@ -582,7 +633,7 @@ classdef BaseTools
         % Draw a simple arrow ending with an arrowhead.
         function [ ah, fh ] = drawArrow( varargin )
             % Usage: drawArrow( x, y, ... ) or drawArrow( x, y, z, ... ).
-            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', '', 'lighting', 'off' } );
+            args = BaseTools.argarray2struct( varargin, { 'Color', 'k', 'axislabels', '', 'lighting', 'off', 'LineWidth', 2.0, 'fixaspectratio', false } );
             if isempty( args.posArgs )
                 error( 'Not enough leading positional input arguments.' );
             end
@@ -598,31 +649,56 @@ classdef BaseTools
             if length(line_coords)<2 || length(line_coords)>3
                 error( 'Need x,y or x,y,z coordinates for arrow.' );
             elseif length(line_coords)==2
+
                 % Here, we have an arrow in a 2D plane.
                 x = line_coords{1};
                 y = line_coords{2};
+                lens = sqrt( diff(x).^2 + diff(y).^2 );
+                full_length = sum(lens);
                 if ~isempty(args.axislabels)
                     xlabel(ah,args.axislabels(1));
                     ylabel(ah,args.axislabels(2));
                 end
-                line( ah, x, y, 'LineWidth', 2.0, 'Color', args.Color );
                 if ~isfield( args, 'headlength' ) || isempty( args.headlength )
-                    lens = sqrt( diff(x).^2 + diff(y).^2 );
-                    full_length = sum(lens);
                     args.headlength = full_length/8;
                 end
                 if ~isfield( args, 'headwidth' ) || isempty( args.headwidth )
                     args.headwidth = args.headlength;
                 end
+
+                % If we draw the line all the way to the very end, it will
+                % stick out around the tapered edges of the arrowhead. So
+                % we'll avoid plotting any part of the line that is under
+                % the arrowhead. 
+                line( ah, x, y, 'LineWidth', args.LineWidth, 'Color', args.Color );
+                
+                % Allow for option to skew for aspect ratio.
+                if isfield( args, 'fixaspectratio' ) && args.fixaspectratio
+                    % Temporarily switch axes units to pixels to get actual screen dimensions
+                    axPos = getpixelposition(ah); % [left, bottom, width, height] in pixels
+                    xsz = diff(ah.XLim);
+                    ysz = diff(ah.YLim);
+                    % Calculate pixels per data unit for each axis
+                    px_per_x = axPos(3) / xsz;
+                    px_per_y = axPos(4) / ysz;
+                    % The true ratio of Y screen space to X screen space
+                    aspectratio = px_per_y / px_per_x;
+                else
+                    aspectratio = 1;
+                end
+
                 % Figure out final heading of arrow.
-                theta = atan2( y(end)-y(end-1), x(end)-x(end-1) );
+                ylen = y(end)-y(end-1);
+                xlen = x(end)-x(end-1);
+                theta = atan2( ylen*aspectratio, xlen );
                 hx = [ 0 -1 -1 ]*args.headlength;
                 hy = [ 0 1 -1 ]*args.headwidth/2;
                 fx = cos(theta)*hx - sin(theta)*hy + x(end);
-                fy = sin(theta)*hx + cos(theta)*hy + y(end);
-                ph = fill( fx, fy, args.Color );
+                fy = (sin(theta)*hx + cos(theta)*hy)/aspectratio + y(end);
+                ph = fill( ah, fx, fy, args.Color );
                 ph.EdgeColor = args.Color;
                 ph.FaceColor = args.Color;
+
             elseif length(line_coords)==3
                 % Here, we need to draw a 3D arrow.
                 x = line_coords{1};
@@ -636,7 +712,7 @@ classdef BaseTools
                 if isfield( args, 'view' ) && ~isempty( args.view )
                     view( args.view );
                 end
-                line( ah, x, y, z, 'LineWidth', 2.0, 'Color', args.Color );
+                line( ah, x, y, z, 'LineWidth', args.LineWidth, 'Color', args.Color );
                 if ~isfield( args, 'headlength' ) || isempty( args.headlength )
                     lens = sqrt( diff(x).^2 + diff(y).^2 + diff(z).^2 );
                     full_length = sum(lens);
@@ -723,10 +799,29 @@ classdef BaseTools
             end
 
             % Resize the figure to better accommodate all its tiles.
-            b = output_fig.Position(4);
-            output_fig.Position(3) = 140 + b * cols;
-            output_fig.Position(4) = 140 + b * rows;
-            output_fig.Position(1) = 1;
+            h = rows * 480;
+            w = cols * 640;
+            % Check if MATLAB has a graphical display available
+            if usejava('awt') && ~isempty(getenv('DISPLAY')) || ismac
+                try
+                    screenSize = get(groot, 'ScreenSize');
+                catch
+                    % Fallback if it fails even with Java/desktop enabled
+                    screenSize = [1, 1, 1920, 1080];
+                end
+            else
+                % Safe default dimensions for headless/batch processing
+                screenSize = [1, 1, 1920, 1080];
+            end
+            relsizes = [ w/screenSize(3) h/screenSize(4) ];
+            if any( relsizes > 0.9 )
+                % Scale down to fit on screen.
+                scaling = min( 0.9./relsizes );
+                h = h * scaling;
+                w = w * scaling;
+            end
+            output_fig.Units = 'pixels';
+            output_fig.Position = [ 1 1 w h ];
 
         end
 
