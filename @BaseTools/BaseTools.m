@@ -838,7 +838,7 @@ classdef BaseTools
             % Render fh to an RGB array at a fixed dpi. Pass targetHW = [] on the
             % first frame; reuse the returned targetHW for all later frames.
             if nargin < 4
-                snap = 4; % Both dimensinos need to be a multiple of 4 in order to avoid rendering errors.
+                snap = 4; % Both dimensions need to be a multiple of 4 in order to avoid rendering errors.
             end
             img = print(fh, '-RGBImage', sprintf('-r%d', dpi));
             if isempty(targetHW)
