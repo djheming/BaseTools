@@ -782,7 +782,8 @@ classdef BaseTools
                 % cols = ceil(N/rows);
             end
             output_fig = figure;
-            th = tiledlayout(output_fig, rows, cols );
+            output_fig.WindowStyle = 'normal';
+            th = tiledlayout( output_fig, rows, cols );
             th.Padding = 'compact';
             th.TileSpacing = 'compact';
 
@@ -798,33 +799,65 @@ classdef BaseTools
                 close(input_fig_handles(i));
             end
 
-            % Resize the figure to better accommodate all its tiles.
-            h = rows * 480;
-            w = cols * 640;
-            % Check if MATLAB has a graphical display available
-            if usejava('awt') && ~isempty(getenv('DISPLAY')) || ismac
-                try
-                    screenSize = get(groot, 'ScreenSize');
-                catch
-                    % Fallback if it fails even with Java/desktop enabled
-                    screenSize = [1, 1, 1920, 1080];
+            % Shrink to fit the screen if necessary.
+            screenSize = BaseTools.getScreenSizeSafe();
+            if ~isempty( screenSize )
+                % If the figure is too big for the screen, shrink it.
+                output_fig.Units = 'pixels';
+                max_size_frac = max( output_fig.Position(3:4)./screenSize(3:4) )/0.95;
+                if max_size_frac > 1
+                    output_fig.Position(3:4) = round( output_fig.Position(3:4)/max_size_frac );
                 end
-            else
-                % Safe default dimensions for headless/batch processing
-                screenSize = [1, 1, 1920, 1080];
+                % Make sure the figure is not running off the edge of the
+                % screen.
+                top_margin = 200;
+                left = max( 1, screenSize(1) + round( ( screenSize(3) - output_fig.Position(3) )/2 ) );
+                bottom = max( 1, screenSize(2) + round( screenSize(4) - output_fig.Position(4) ) - top_margin );
+                output_fig.Position = [ left bottom output_fig.Position(3:4) ];
             end
-            relsizes = [ w/screenSize(3) h/screenSize(4) ];
-            if any( relsizes > 0.9 )
-                % Scale down to fit on screen.
-                scaling = min( 0.9./relsizes );
-                h = h * scaling;
-                w = w * scaling;
-            end
-            output_fig.Units = 'pixels';
-            output_fig.Position = [ 1 1 w h ];
 
         end
+        function screenSize = getScreenSizeSafe()
+            % Returns [1 1 W H]. Returns empty when running
+            % non-interactively or when the reported size looks invalid.
+            screenSize = [];
+            if batchStartupOptionUsed || ~usejava('desktop')
+                return;
+            end
+            try
+                s = get(groot, 'ScreenSize');
+                if numel(s) == 4 && all(isfinite(s)) && s(3) >= 640 && s(4) >= 480
+                    screenSize = s;
+                end
+            catch
+            end
+        end
 
+        % Support for animations.
+        function [ img, targetHW ] = renderFrame( fh, dpi, targetHW, snap )
+            % Render fh to an RGB array at a fixed dpi. Pass targetHW = [] on the
+            % first frame; reuse the returned targetHW for all later frames.
+            if nargin < 4
+                snap = 4; % Both dimensinos need to be a multiple of 4 in order to avoid rendering errors.
+            end
+            img = print(fh, '-RGBImage', sprintf('-r%d', dpi));
+            if isempty(targetHW)
+                targetHW = floor(size(img,1:2) / snap) * snap;
+            end
+            % Crop anything oversize, pad anything undersize (white).
+            h = min(size(img,1), targetHW(1));
+            w = min(size(img,2), targetHW(2));
+            if h < targetHW(1) || w < targetHW(2)
+                warning('renderFrame:undersize', 'Frame %s is smaller than target %s; padding.', ...
+                    mat2str(size(img,1:2)), mat2str(targetHW));
+                out = uint8(255*ones([targetHW 3]));
+                out(1:h,1:w,:) = img(1:h,1:w,:);
+                img = out;
+            else
+                img = img(1:h,1:w,:);
+            end
+        end
+        
         % Build a nice label from type and units.
         function disp_units = getDispUnits( type_txt, units_txt )
             if ~isempty( type_txt ) && ~isempty( units_txt )
@@ -1165,6 +1198,7 @@ classdef BaseTools
             [ a3, f3 ] = BaseTools.verifyAxesHandle;
             hold( a3, 'on' );
             grid( a3, 'on' );
+            axis( a3, 'equal' );
 
             % Draw an arc on geographic coordinates.
             R = 2;
