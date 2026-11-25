@@ -995,10 +995,10 @@ classdef BaseTools
             end
             switch lower(target)
                 case {'paper', 'pub', 'publication'}
-                    figWidth  = 24;  
-                    figHeight = 18;  
+                    figWidth  = 20;  
+                    figHeight = 16;  
                     baseFont  = 12;
-                    titleFont = 14;
+                    titleFont = 16;
                 case {'ppt', 'presentation', 'slides'}
                     figWidth  = 20;  
                     figHeight = 15;  
